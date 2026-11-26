@@ -86,6 +86,8 @@
   }
   .go-btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0e16; }
   .go-btn:active, .go-btn.busy { transform: scale(.97); }
+  .go-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+  .range input[aria-invalid="true"] { border-color: var(--warn); }
   .go-btn.busy { border-color: var(--good); box-shadow: 0 0 0 3px rgba(74, 222, 128, .25); }
   .go-btn:focus-visible, .chip:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
   .privacy { font-size: 12px; color: var(--muted); text-align: center; margin: 0; }
@@ -175,8 +177,8 @@
   </section>
 
   <div class="range" id="rangeRow" hidden>
-    <label>From<input id="minIn" type="number" value="1" inputmode="numeric"></label>
-    <label>To<input id="maxIn" type="number" value="100" inputmode="numeric"></label>
+    <label>From<input id="minIn" type="number" value="1" min="-1000000000" max="1000000000" step="1" inputmode="numeric"></label>
+    <label>To<input id="maxIn" type="number" value="100" min="-1000000000" max="1000000000" step="1" inputmode="numeric"></label>
   </div>
 
   <div class="energy">
@@ -259,6 +261,7 @@ const MIC_BUFFERS_TARGET = 24;      // about 2 s of contiguous audio at 48 kHz
 const MIC_WARMUP_BUFFERS = 6;       // skip at least 0.5 s while the mic starts up
 const MIC_MAX_WARMUP_BUFFERS = 36;  // give up after about 3 s of pure silence
 const MIN_SYMBOLS = 500;
+const RANGE_LIMIT = 1_000_000_000;  // well inside exact-integer range, about 30 bits per number
 const FAIR_ROLLS = 1000;
 const BAR_COUNT = 18;
 const PW_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*-_=+?";
@@ -316,6 +319,30 @@ function showFace(n) {
   $("die").setAttribute("aria-label", "Die showing " + n);
 }
 
+// ---------- Number range ----------
+// Checked while typing, so nobody collects noise only to be told the range is wrong.
+function readRange() {
+  if (mode !== "number") return { ok: true };
+  const a = $("minIn").value.trim(), b = $("maxIn").value.trim();
+  if (a === "" || b === "") return { ok: false, msg: "Enter both numbers." };
+  const lo = Number(a), hi = Number(b);
+  if (!Number.isInteger(lo) || !Number.isInteger(hi)) return { ok: false, msg: "Use whole numbers only." };
+  if (Math.abs(lo) > RANGE_LIMIT || Math.abs(hi) > RANGE_LIMIT) return { ok: false, msg: "Keep both numbers between -1,000,000,000 and 1,000,000,000." };
+  if (hi <= lo) return { ok: false, msg: "'To' must be bigger than 'From'." };
+  return { ok: true, lo, hi };
+}
+
+let rangeWarned = false;
+function checkRange() {
+  const r = readRange();
+  ["minIn", "maxIn"].forEach((id) => $(id).setAttribute("aria-invalid", String(!r.ok)));
+  $("shakeBtn").disabled = !r.ok;
+  $("micBtn").disabled = !r.ok;
+  if (!r.ok) { setCaption(r.msg, "warn"); rangeWarned = true; }
+  else if (rangeWarned) { setCaption(IDLE_CAPTION, ""); rangeWarned = false; }
+  return r;
+}
+
 function showMode() {
   document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.mode === mode)));
   $("die").hidden = mode !== "dice";
@@ -340,6 +367,7 @@ function showMode() {
     if (mode === "password") $("pwView").textContent = "?".repeat(PW_LENGTH);
     setCaption(IDLE_CAPTION, "");
   }
+  checkRange();
 }
 
 function setNumber(text) {
@@ -420,7 +448,7 @@ function onMotion(e) {
 }
 
 async function startMotion() {
-  if (collecting) return;
+  if (collecting || !checkRange().ok) return;
   resetCollection();
   if (typeof DeviceMotionEvent === "undefined") {
     setCaption("This device has no motion sensors. Try listening to the hiss.", "bad");
@@ -452,7 +480,7 @@ async function startMotion() {
 let audioCtx = null, micStream = null, processor = null;
 
 async function startMic() {
-  if (collecting) return;
+  if (collecting || !checkRange().ok) return;
   resetCollection();
   // Create the audio context inside the tap, before any await, so iPhones allow it.
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -626,9 +654,9 @@ async function generate() {
       lastResult = { mode, text: heads ? "Heads" : "Tails" };
       setCaption(heads ? "Heads!" : "Tails!", "good");
     } else if (mode === "number") {
-      const lo = Math.ceil(Number($("minIn").value)), hi = Math.floor(Number($("maxIn").value));
-      if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) { setCaption("'To' must be bigger than or equal to 'From'.", "warn"); return; }
-      if (hi - lo > 2 ** 30) { setCaption("Please keep the range under about one billion.", "warn"); return; }
+      const r = readRange(); // the range may have been edited while collecting; no bits are spent if it's invalid
+      if (!r.ok) { checkRange(); return; }
+      const { lo, hi } = r;
       const v = lo + await randomBelow(hi - lo + 1);
       setNumber(String(v));
       lastResult = { mode, text: String(v) };
@@ -794,6 +822,8 @@ document.querySelectorAll(".chip").forEach((chip) => {
     showMode();
   };
 });
+
+["minIn", "maxIn"].forEach((id) => { $(id).oninput = () => { if (!collecting) checkRange(); }; });
 
 $("copyBtn").onclick = async () => {
   if (!lastResult) return;
