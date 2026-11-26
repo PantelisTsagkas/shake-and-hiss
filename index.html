@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shake & Hiss: Physical Random Numbers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117; --card: #181b24; --card2: #1d2130; --line: #2a2f3d; --text: #e8eaf0;
+    --muted: #9aa1b2; --soft: #c8cddb; --accent: #7c9cff; --accent2: #f5a97f; --link: #9db2ff;
+    --good: #4ade80; --warn: #fbbf24; --bad: #f87171; --idle: #2a3045;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.45; }
+  button, input { font-family: inherit; }
+  .display { font-family: "Space Grotesk", Inter, system-ui, sans-serif; }
+
+  main {
+    max-width: 430px; min-height: 100vh; min-height: 100dvh; margin: 0 auto;
+    padding: 24px 20px 28px; display: flex; flex-direction: column; align-items: center; gap: 16px;
+  }
+  header { align-self: stretch; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  h1 { margin: 0; font-size: 44px; line-height: 1; letter-spacing: -0.02em; font-weight: 700; }
+  .sub { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+
+  .pill-btn {
+    height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: transparent;
+    color: var(--accent2); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0;
+  }
+  .chips { align-self: stretch; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .chip {
+    height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: transparent;
+    color: var(--soft); font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
+
+  .stage { flex: 1; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 300px; }
+  .stage-box { width: 100%; max-width: 330px; height: 240px; display: flex; align-items: center; justify-content: center; }
+  .die {
+    width: 196px; height: 196px; padding: 30px; background: #f5f1e8; border-radius: 40px;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; transition: transform .08s linear;
+  }
+  .pip { border-radius: 999px; background: #141722; opacity: 0; }
+  .pip.on { opacity: 1; }
+  .coin {
+    width: 200px; height: 200px; border-radius: 999px; background: var(--accent2); border: 10px solid #e48a5c;
+    display: flex; align-items: center; justify-content: center; font-size: 84px; font-weight: 700; color: #3a1d0e;
+  }
+  .big-number { font-size: 150px; font-weight: 700; line-height: 1; color: var(--accent); transition: transform .08s linear; }
+  .big-number.long { font-size: 96px; }
+  .pw-card {
+    width: 100%; padding: 22px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    font-family: ui-monospace, Menlo, monospace; font-size: 21px; font-weight: 600; text-align: center; word-break: break-all;
+  }
+  .caption { font-size: 15px; font-weight: 600; color: var(--soft); text-align: center; min-height: 22px; max-width: 320px; }
+  .caption.good { color: var(--good); } .caption.bad { color: var(--bad); } .caption.warn { color: var(--warn); }
+  .copy-btn {
+    height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; background: transparent;
+    color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  }
+
+  .range { align-self: stretch; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .range label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .range input {
+    height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line);
+    background: #11141c; color: var(--text); font-size: 16px; width: 100%;
+  }
+
+  .energy { align-self: stretch; display: flex; flex-direction: column; gap: 6px; }
+  .energy-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .bars { height: 56px; display: flex; align-items: flex-end; gap: 4px; }
+  .bar { flex: 1; height: 8%; background: var(--idle); border-radius: 4px; transition: height .08s linear, background .2s; }
+
+  .shake-btn {
+    width: 132px; height: 132px; border-radius: 999px; border: 6px solid #2a3150; background: var(--accent); color: #0b0e16;
+    font-size: 22px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    cursor: pointer; transition: transform .12s;
+  }
+  .shake-btn:active, .shake-btn.busy { transform: scale(.95); }
+  .link-btn {
+    height: 44px; padding: 0 14px; border: 0; background: transparent; color: var(--link); font-size: 14px; font-weight: 600;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .privacy { font-size: 12px; color: var(--muted); text-align: center; margin: 0; }
+
+  /* Nerd stats panel */
+  .scrim { position: fixed; inset: 0; background: rgba(5, 7, 12, .72); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+  .scrim[hidden] { display: none; }
+  .panel {
+    width: 100%; max-width: 430px; max-height: 88vh; max-height: 88dvh; overflow-y: auto; background: var(--card2);
+    border: 1px solid #343a4f; border-bottom: 0; border-radius: 24px 24px 0 0; padding: 18px 18px 28px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; }
+  .panel-head h2 { margin: 0; font-size: 22px; }
+  .icon-btn { width: 44px; height: 44px; border: 0; border-radius: 12px; background: var(--idle); color: var(--text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+  .panel h3 { margin: 4px 0 0; font-size: 16px; }
+  .hint { margin: 0; font-size: 13px; color: var(--muted); }
+  canvas { width: 100%; background: #11141c; border-radius: 12px; display: block; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .stat { background: #11141c; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .stat span:first-child { font-size: 12px; color: var(--muted); }
+  .stat span:last-child { font-size: 16px; font-weight: 700; }
+  .verdict { font-size: 14px; font-weight: 600; margin: 0; }
+  .verdict.good { color: var(--good); } .verdict.warn { color: var(--warn); } .verdict.bad { color: var(--bad); }
+  .btn { height: 44px; border: 0; border-radius: 12px; background: var(--accent); color: #0b0e16; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .btn.secondary { background: transparent; border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  details summary { cursor: pointer; color: var(--link); font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+  details p { color: var(--muted); font-size: 14px; margin: 0 0 10px; }
+  .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); word-break: break-all; }
+  .empty { font-size: 14px; color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 class="display">Shake it.</h1>
+      <p class="sub">Real noise in. Fair results out.</p>
+    </div>
+    <button class="pill-btn" id="statsBtn" aria-haspopup="dialog">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>
+      Nerd stats
+    </button>
+  </header>
+
+  <div class="chips" role="group" aria-label="What to generate">
+    <button class="chip" data-mode="dice" aria-pressed="true">Dice</button>
+    <button class="chip" data-mode="coin" aria-pressed="false">Coin</button>
+    <button class="chip" data-mode="number" aria-pressed="false">Number</button>
+    <button class="chip" data-mode="password" aria-pressed="false">Password</button>
+  </div>
+
+  <section class="stage" aria-live="polite">
+    <div class="stage-box">
+      <div class="die" id="die" role="img" aria-label="Die showing 5">
+        <div class="pip"></div><div class="pip"></div><div class="pip"></div>
+        <div class="pip"></div><div class="pip"></div><div class="pip"></div>
+        <div class="pip"></div><div class="pip"></div><div class="pip"></div>
+      </div>
+      <div class="coin display" id="coin" role="img" aria-label="Coin" hidden>H</div>
+      <div class="big-number display" id="numberView" hidden>?</div>
+      <div class="pw-card" id="pwView" hidden>????????????????</div>
+    </div>
+    <div class="caption" id="caption">Tap Shake, then shake your phone</div>
+    <button class="copy-btn" id="copyBtn" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      <span>Copy</span>
+    </button>
+  </section>
+
+  <div class="range" id="rangeRow" hidden>
+    <label>From<input id="minIn" type="number" value="1" inputmode="numeric"></label>
+    <label>To<input id="maxIn" type="number" value="100" inputmode="numeric"></label>
+  </div>
+
+  <div class="energy">
+    <div class="energy-label"><span>Shake energy</span><span id="energyText">Ready</span></div>
+    <div class="bars" id="bars" aria-hidden="true"></div>
+  </div>
+
+  <button class="shake-btn display" id="shakeBtn" aria-label="Shake to generate">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/><path d="M3 8v8"/><path d="M21 8v8"/></svg>
+    <span id="shakeLabel">Shake</span>
+  </button>
+  <button class="link-btn" id="micBtn">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/></svg>
+    Or listen to the hiss
+  </button>
+  <p class="privacy">Nothing leaves your phone. All noise is processed in your browser.</p>
+</main>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
+    <div class="panel-head">
+      <h2 class="display" id="panelTitle">Nerd stats</h2>
+      <button class="icon-btn" id="closeStats" aria-label="Close nerd stats">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <p class="hint" id="budget">Fresh random bits available: 0</p>
+    <p class="empty" id="emptyMsg">Shake (or listen) once, and the measurements of your noise appear here.</p>
+
+    <div id="report" hidden>
+      <h3 class="display">How random was it really?</h3>
+      <p class="hint">Each reading becomes an 8-bit symbol (0 to 255) for how much it changed since the one before. Perfect noise fills the bars evenly.</p>
+      <canvas id="histo" width="560" height="110" style="height:110px; margin-top:10px" aria-label="Histogram of the measured symbols"></canvas>
+      <div class="grid2" id="stats" style="margin-top:10px"></div>
+      <p class="verdict" id="verdict" style="margin-top:10px"></p>
+      <button class="btn secondary" id="downloadBtn" style="width:100%; margin-top:10px">Download raw samples (.csv)</button>
+    </div>
+
+    <div id="fairSection" hidden>
+      <h3 class="display">Fairness test: 1,000 dice</h3>
+      <p class="hint">Rolls 1,000 dice from the <b>raw noise</b> and 1,000 from the <b>hashed</b> seed. Raw shows the truth about your sensor. Hashed almost always looks perfect, which is why it can't prove anything on its own.</p>
+      <button class="btn" id="fairBtn" style="width:100%; margin-top:10px">Run fairness test</button>
+      <canvas id="fairChart" width="560" height="150" style="height:150px; margin-top:10px" hidden aria-label="Dice fairness chart"></canvas>
+      <div class="legend" id="fairLegend" hidden style="margin-top:6px">
+        <span><span class="dot" style="background:var(--accent2)"></span>Raw noise</span>
+        <span><span class="dot" style="background:var(--accent)"></span>Hashed</span>
+        <span>Line = perfect fairness</span>
+      </div>
+      <div class="grid2" id="fairResult" style="margin-top:10px"></div>
+      <p class="hint" id="fairNote" style="margin-top:8px"></p>
+    </div>
+
+    <details>
+      <summary>How does this work?</summary>
+      <p><b>Collect:</b> sensors are never perfectly still. Tiny jitters from heat and electronics show up in your phone's motion readings and in the quietest part of the microphone signal.</p>
+      <p><b>Changes, not readings:</b> sensor signals drift slowly, so a reading is usually close to the one before it. The app measures the change between readings, which is close to independent, so it doesn't count the same randomness twice.</p>
+      <p><b>Measure:</b> two checks in the style of NIST SP 800-90B. A frequency check (the more one symbol repeats, the less random) and a prediction check (how well each reading predicts the next, learning only from the past). The app keeps the lower score. These are estimates, not a certificate.</p>
+      <p><b>Health check:</b> NIST's repetition count test rejects the noise if one value repeats too many times in a row, like a stuck sensor or a TV in the room.</p>
+      <p><b>Safety margin:</b> only half of the measured randomness is credited, capped at 256 bits.</p>
+      <p><b>Extract and spend:</b> the raw noise is hashed with SHA-256 into a 256-bit seed. Each result uses up credited bits, and no bit is reused.</p>
+      <p><b>Passwords:</b> your physical seed is combined with the browser's own secure generator, so a password is at least as strong as the stronger of the two.</p>
+      <p class="mono" id="seedHex"></p>
+    </details>
+  </div>
+</div>
+
+<script src="stats.js"></script>
+<script>
+"use strict";
+
+// ---------- Settings ----------
+const MOTION_TARGET = 300;          // motion events (about 5 s at 60 Hz)
+const MIC_BUFFER = 4096;
+const MIC_BUFFERS_TARGET = 24;      // about 2 s of contiguous audio at 48 kHz
+const MIC_WARMUP_BUFFERS = 6;       // skip at least 0.5 s while the mic starts up
+const MIC_MAX_WARMUP_BUFFERS = 36;  // give up after about 3 s of pure silence
+const MIN_SYMBOLS = 500;
+const FAIR_ROLLS = 1000;
+const BAR_COUNT = 18;
+const PW_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*-_=+?";
+const PW_LENGTH = 16;
+const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+
+// ---------- State ----------
+let mode = "dice";
+let collecting = null;              // "motion" | "mic" | null
+let progress = 0;
+let rawBytes = [];                  // Uint8Array chunks fed to SHA-256
+let symbols = [];                   // 8-bit change symbols for measurement
+let csvValues = [];                 // raw values lined up with symbols
+let lastRaw = null;                 // { source, values, symbols }
+let seed = null;
+let counter = 0, stream = [];
+let bitsLeft = 0, bitBuffer = 0, bitBufferLen = 0;
+let lastSource = "";
+let energy = new Array(BAR_COUNT).fill(0);
+let animTimer = null;
+let lastResult = null;              // { mode, text }
+
+// ---------- Helpers ----------
+const $ = (id) => document.getElementById(id);
+const toHex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const looseRandom = (n) => Math.floor(Math.random() * n); // animation only, never for results
+
+async function sha256(bytes) { return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)); }
+
+function concat(chunks) {
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const all = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) { all.set(c, off); off += c.length; }
+  return all;
+}
+
+function setCaption(text, kind) {
+  const el = $("caption");
+  el.textContent = text;
+  el.className = "caption " + (kind || "");
+}
+
+// ---------- Stage rendering ----------
+function showFace(n) {
+  const on = PIPS[n];
+  document.querySelectorAll("#die .pip").forEach((p, i) => p.classList.toggle("on", on.includes(i)));
+  $("die").setAttribute("aria-label", "Die showing " + n);
+}
+
+function showMode() {
+  document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.mode === mode)));
+  $("die").hidden = mode !== "dice";
+  $("coin").hidden = mode !== "coin";
+  $("numberView").hidden = mode !== "number";
+  $("pwView").hidden = mode !== "password";
+  $("rangeRow").hidden = mode !== "number";
+  const hasResult = lastResult && lastResult.mode === mode;
+  $("copyBtn").hidden = !hasResult || !(mode === "number" || mode === "password");
+  if (collecting) return;
+  if (hasResult) {
+    // Show the last real result again (the tumbling animation may have left a random face).
+    const t = lastResult.text;
+    if (mode === "dice") showFace(Number(t));
+    if (mode === "coin") { $("coin").textContent = t === "Heads" ? "H" : "T"; $("coin").setAttribute("aria-label", "Coin showing " + t.toLowerCase()); }
+    if (mode === "number") setNumber(t);
+    if (mode === "password") $("pwView").textContent = t;
+  } else {
+    if (mode === "dice") showFace(5);
+    if (mode === "coin") { $("coin").textContent = "H"; $("coin").setAttribute("aria-label", "Coin"); }
+    if (mode === "number") setNumber("?");
+    if (mode === "password") $("pwView").textContent = "?".repeat(PW_LENGTH);
+    setCaption("Tap Shake, then shake your phone", "");
+  }
+}
+
+function setNumber(text) {
+  const el = $("numberView");
+  el.textContent = text;
+  el.classList.toggle("long", text.length > 3);
+}
+
+function renderBars() {
+  const done = progress / 100;
+  document.querySelectorAll("#bars .bar").forEach((b, i) => {
+    b.style.height = (8 + energy[i] * 92).toFixed(0) + "%";
+    b.style.background = collecting ? (i / BAR_COUNT < done ? cssVar("--good") : cssVar("--accent")) : cssVar("--idle");
+  });
+}
+
+function pushEnergy(level) {
+  energy.shift();
+  energy.push(Math.max(0, Math.min(1, level)));
+}
+
+// Cosmetic tumbling while noise is collected. Uses Math.random only for the animation.
+function startAnimation() {
+  stopAnimation();
+  animTimer = setInterval(() => {
+    const rot = (Math.random() - 0.5) * 36;
+    if (mode === "dice") { showFace(looseRandom(6) + 1); $("die").style.transform = "rotate(" + rot + "deg) scale(.94)"; }
+    if (mode === "coin") { $("coin").style.transform = "scaleX(" + Math.cos(Date.now() / 60).toFixed(2) + ")"; $("coin").textContent = Math.cos(Date.now() / 60) > 0 ? "H" : "T"; }
+    if (mode === "number") { setNumber(String(looseRandom(100) + 1)); $("numberView").style.transform = "rotate(" + rot / 2 + "deg)"; }
+    if (mode === "password") { let s = ""; for (let i = 0; i < PW_LENGTH; i++) s += PW_CHARS[looseRandom(PW_CHARS.length)]; $("pwView").textContent = s; }
+    energy = energy.map((e) => e * 0.92); // decays when you stop shaking
+    renderBars();
+  }, 60);
+}
+
+function stopAnimation() {
+  if (animTimer) clearInterval(animTimer);
+  animTimer = null;
+  $("die").style.transform = "";
+  $("coin").style.transform = "";
+  $("numberView").style.transform = "";
+}
+
+function setBusy(busy, label) {
+  $("shakeBtn").classList.toggle("busy", busy);
+  $("shakeLabel").textContent = label;
+  $("shakeBtn").setAttribute("aria-label", busy ? "Collecting noise" : "Shake to generate");
+}
+
+function setProgress(p) {
+  progress = Math.min(100, p);
+  $("energyText").textContent = Math.round(progress) + "%";
+}
+
+// ---------- Motion source ----------
+let prevMotion = null, prevAccel = null;
+
+function onMotion(e) {
+  const a = e.accelerationIncludingGravity || {};
+  const r = e.rotationRate || {};
+  const nums = [a.x, a.y, a.z, r.alpha, r.beta, r.gamma].map((v) => (v == null ? 0 : v));
+  if (nums.every((v) => v === 0)) return;
+  const f = new Float64Array([...nums, e.timeStamp, performance.now()]);
+  rawBytes.push(new Uint8Array(f.buffer));
+  // Measure the change since the previous reading on each channel, not the reading itself.
+  nums.forEach((v, ch) => {
+    const q = Math.round(v * 1000);
+    if (prevMotion) { csvValues.push(v); symbols.push((q - prevMotion[ch]) & 0xff); }
+  });
+  prevMotion = nums.map((v) => Math.round(v * 1000));
+  // Real shake energy: how hard the acceleration changed.
+  if (prevAccel) pushEnergy(Math.hypot(nums[0] - prevAccel[0], nums[1] - prevAccel[1], nums[2] - prevAccel[2]) / 12);
+  prevAccel = nums.slice(0, 3);
+  setProgress((rawBytes.length / MOTION_TARGET) * 100);
+  if (rawBytes.length >= MOTION_TARGET) finishCollecting("motion sensors");
+}
+
+async function startMotion() {
+  if (collecting) return;
+  resetCollection();
+  if (typeof DeviceMotionEvent === "undefined") {
+    setCaption("This device has no motion sensors. Try listening to the hiss.", "bad");
+    return;
+  }
+  try {
+    if (typeof DeviceMotionEvent.requestPermission === "function") {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== "granted") { setCaption("Motion permission was refused.", "bad"); return; }
+    }
+  } catch (err) {
+    setCaption("Could not get motion permission: " + err.message, "bad");
+    return;
+  }
+  collecting = "motion";
+  window.addEventListener("devicemotion", onMotion);
+  setBusy(true, "Keep going");
+  setCaption("Shake, shake, shake!", "");
+  startAnimation();
+  setTimeout(() => {
+    if (collecting === "motion" && rawBytes.length === 0) {
+      stopCollecting();
+      setCaption("No motion data arrived. On a laptop, try listening to the hiss.", "bad");
+    }
+  }, 3000);
+}
+
+// ---------- Microphone source ----------
+let audioCtx = null, micStream = null, processor = null;
+
+async function startMic() {
+  if (collecting) return;
+  resetCollection();
+  // Create the audio context inside the tap, before any await, so iPhones allow it.
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+    await audioCtx.resume();
+  } catch (err) {
+    stopCollecting();
+    setCaption("Microphone not available: " + err.message, "bad");
+    return;
+  }
+  const src = audioCtx.createMediaStreamSource(micStream);
+  // ScriptProcessor gives contiguous, non-overlapping buffers, so no sample is counted twice.
+  processor = audioCtx.createScriptProcessor(MIC_BUFFER, 1, 1);
+  const mute = audioCtx.createGain();
+  mute.gain.value = 0;
+  src.connect(processor); processor.connect(mute); mute.connect(audioCtx.destination);
+  collecting = "mic";
+  let buffers = 0, warmup = 0, started = false, prev = null, peak = 1e-9;
+  setBusy(true, "Listening");
+  setCaption("Warming up the microphone…", "");
+  startAnimation();
+
+  processor.onaudioprocess = (e) => {
+    if (collecting !== "mic") return;
+    const data = e.inputBuffer.getChannelData(0).slice();
+    // Phones send pure silence while the mic starts up. Skip at least half a second,
+    // and keep waiting until real signal arrives.
+    if (!started) {
+      warmup++;
+      if (warmup >= MIC_WARMUP_BUFFERS && data.some((x) => x !== 0)) {
+        started = true;
+        setCaption("Listening… stay quiet, the hiss is enough", "");
+      } else if (warmup >= MIC_MAX_WARMUP_BUFFERS) {
+        stopCollecting();
+        setCaption("The microphone only sent silence. Is it muted or used by another app?", "bad");
+      }
+      return;
+    }
+    rawBytes.push(new Uint8Array(data.buffer));
+    let activity = 0;
+    for (let i = 0; i < data.length; i++) {
+      const q = Math.round(data[i] * 32768); // 16-bit sample
+      if (prev !== null) {
+        symbols.push((q - prev) & 0xff); // change since last sample
+        csvValues.push(data[i]);
+        activity += Math.abs(q - prev);
+      }
+      prev = q;
+    }
+    activity /= data.length;
+    peak = Math.max(peak, activity);
+    pushEnergy(activity / peak);
+    buffers++;
+    setProgress((buffers / MIC_BUFFERS_TARGET) * 100);
+    if (buffers >= MIC_BUFFERS_TARGET) finishCollecting("microphone hiss");
+  };
+}
+
+// ---------- Collection lifecycle ----------
+function resetCollection() {
+  stopCollecting();
+  rawBytes = []; symbols = []; csvValues = []; prevMotion = null; prevAccel = null;
+  setProgress(0);
+}
+
+function stopCollecting() {
+  window.removeEventListener("devicemotion", onMotion);
+  if (processor) { processor.onaudioprocess = null; processor.disconnect(); }
+  if (micStream) micStream.getTracks().forEach((t) => t.stop());
+  if (audioCtx) audioCtx.close().catch(() => {});
+  processor = null; micStream = null; audioCtx = null;
+  collecting = null;
+  stopAnimation();
+  setBusy(false, lastResult ? "Again!" : "Shake");
+  energy = energy.map(() => 0);
+  renderBars();
+  showMode();
+}
+
+async function finishCollecting(sourceName) {
+  stopCollecting();
+  const syms = Uint8Array.from(symbols);
+  lastRaw = { source: sourceName, values: csvValues.slice(), symbols: syms };
+
+  if (syms.length < MIN_SYMBOLS) {
+    setCaption("Not enough readings to measure. Try again.", "bad");
+    $("energyText").textContent = "Try again";
+    return;
+  }
+  const report = assessEntropy(syms);
+  const credit = report.rctPassed ? creditedBits(report.totalBits) : 0;
+  showReport(report, credit, sourceName);
+
+  if (!report.rctPassed) {
+    setCaption("Too predictable to trust, so nothing was used. A TV or voices nearby? Try somewhere quiet.", "bad");
+    $("energyText").textContent = "Rejected";
+    return;
+  }
+  if (credit < 8) {
+    setCaption("Too little real randomness. Try the other source.", "bad");
+    $("energyText").textContent = "Rejected";
+    return;
+  }
+
+  const digest = await sha256(concat(rawBytes));
+  seed = seed ? await sha256(concat([seed, digest])) : digest; // keep any earlier randomness
+  counter = 0; stream = []; bitBuffer = 0; bitBufferLen = 0;
+  bitsLeft = Math.min(256, bitsLeft + credit);
+  lastSource = sourceName;
+  rawBytes = [];
+  $("seedHex").textContent = "Current seed (SHA-256): " + toHex(seed);
+  $("energyText").textContent = credit + " bits collected";
+  $("fairSection").hidden = false;
+  await generate();
+}
+
+// ---------- Spending bits ----------
+async function nextByte() {
+  if (stream.length === 0) {
+    const input = new Uint8Array(seed.length + 4);
+    input.set(seed);
+    new DataView(input.buffer).setUint32(seed.length, counter++);
+    stream = Array.from(await sha256(input));
+  }
+  return stream.shift();
+}
+
+async function takeBits(n) {
+  if (n > bitsLeft) throw new Error("NOT_ENOUGH_BITS");
+  let value = 0;
+  for (let i = 0; i < n; i++) {
+    if (bitBufferLen === 0) { bitBuffer = await nextByte(); bitBufferLen = 8; }
+    value = (value << 1) | (bitBuffer & 1);
+    bitBuffer >>= 1; bitBufferLen--;
+  }
+  bitsLeft -= n;
+  return value >>> 0;
+}
+
+async function randomBelow(n) {
+  if (n <= 1) return 0;
+  const bits = Math.ceil(Math.log2(n));
+  for (;;) {
+    const v = await takeBits(bits);
+    if (v < n) return v;
+  }
+}
+
+function randomBelowCrypto(n) {
+  const limit = Math.floor(0x100000000 / n) * n;
+  const a = new Uint32Array(1);
+  do { crypto.getRandomValues(a); } while (a[0] >= limit);
+  return a[0] % n;
+}
+
+async function generate() {
+  try {
+    const from = " Made from your " + lastSource + ".";
+    if (mode === "dice") {
+      const v = (await randomBelow(6)) + 1;
+      showFace(v);
+      lastResult = { mode, text: String(v) };
+      setCaption("You rolled a " + v + "!", "good");
+    } else if (mode === "coin") {
+      const heads = (await takeBits(1)) === 1;
+      $("coin").textContent = heads ? "H" : "T";
+      $("coin").setAttribute("aria-label", heads ? "Coin showing heads" : "Coin showing tails");
+      lastResult = { mode, text: heads ? "Heads" : "Tails" };
+      setCaption(heads ? "Heads!" : "Tails!", "good");
+    } else if (mode === "number") {
+      const lo = Math.ceil(Number($("minIn").value)), hi = Math.floor(Number($("maxIn").value));
+      if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) { setCaption("'To' must be bigger than or equal to 'From'.", "warn"); return; }
+      if (hi - lo > 2 ** 30) { setCaption("Please keep the range under about one billion.", "warn"); return; }
+      const v = lo + await randomBelow(hi - lo + 1);
+      setNumber(String(v));
+      lastResult = { mode, text: String(v) };
+      setCaption("Your number is " + v + "!", "good");
+    } else {
+      let pw = "";
+      for (let i = 0; i < PW_LENGTH; i++) {
+        const physical = await randomBelow(PW_CHARS.length);
+        const browser = randomBelowCrypto(PW_CHARS.length);
+        pw += PW_CHARS[(physical + browser) % PW_CHARS.length]; // as strong as the stronger source
+      }
+      $("pwView").textContent = pw;
+      lastResult = { mode, text: pw };
+      setCaption("Fresh password, made only on this phone.", "good");
+    }
+    $("shakeLabel").textContent = "Again!";
+    showMode();
+    updateBudget();
+  } catch (err) {
+    if (err.message === "NOT_ENOUGH_BITS") setCaption("Out of fresh randomness. Shake again to collect more.", "warn");
+    else setCaption("Something went wrong: " + err.message, "bad");
+    updateBudget();
+  }
+}
+
+function updateBudget() { $("budget").textContent = "Fresh random bits available: " + bitsLeft; }
+
+// ---------- Nerd stats: measurement report ----------
+function showReport(r, credit, sourceName) {
+  $("emptyMsg").hidden = true;
+  $("report").hidden = false;
+  const c = $("histo"), ctx = c.getContext("2d"), w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  const maxC = Math.max(...r.counts);
+  const bw = w / 256;
+  ctx.fillStyle = cssVar("--accent");
+  r.counts.forEach((n, i) => {
+    const bh = maxC ? (n / maxC) * (h - 6) : 0;
+    ctx.fillRect(i * bw, h - bh, Math.max(1, bw - 0.5), bh);
+  });
+  const yLine = h - (r.n / 256 / maxC) * (h - 6);
+  ctx.strokeStyle = cssVar("--muted"); ctx.setLineDash([4, 4]); ctx.beginPath();
+  ctx.moveTo(0, yLine); ctx.lineTo(w, yLine); ctx.stroke(); ctx.setLineDash([]);
+
+  const rows = [
+    ["Source", sourceName],
+    ["Readings", r.n.toLocaleString()],
+    ["Frequency check", r.hMcv.toFixed(2) + " bits"],
+    ["Prediction check", r.hMarkov.toFixed(2) + " bits"],
+    ["Per reading (lower)", r.hPerSample.toFixed(2) + " of 8 bits"],
+    ["Total estimated", Math.floor(r.totalBits).toLocaleString() + " bits"],
+    ["Longest repeat", r.maxRun + (Number.isFinite(r.rctCutoff) ? " (limit " + r.rctCutoff + ")" : "") + (r.rctPassed ? " ✓" : " ✗")],
+    ["Credited", credit + " of 256 bits"],
+  ];
+  $("stats").innerHTML = rows.map(([k, v]) => '<div class="stat"><span>' + k + "</span><span>" + v + "</span></div>").join("");
+
+  const v = $("verdict");
+  if (!r.rctPassed) { v.textContent = "Rejected: the signal was more predictable than its score suggested. A common cause is real sound, like a TV or voices."; v.className = "verdict bad"; }
+  else if (credit >= 256 && r.hPerSample >= 6) { v.textContent = "Very noisy source. Great for randomness."; v.className = "verdict good"; }
+  else if (credit >= 256) { v.textContent = "Low randomness per reading, but plenty in total. That's normal for quiet hiss."; v.className = "verdict good"; }
+  else if (credit >= 8) { v.textContent = "Some randomness, but not enough for a full seed. Collect again to top it up."; v.className = "verdict warn"; }
+  else { v.textContent = "Too little randomness to use. Try the other source."; v.className = "verdict bad"; }
+}
+
+$("downloadBtn").onclick = () => {
+  if (!lastRaw) return;
+  const lines = ["raw_value,change_symbol_8bit"];
+  const n = Math.min(lastRaw.values.length, lastRaw.symbols.length);
+  for (let i = 0; i < n; i++) lines.push(lastRaw.values[i] + "," + lastRaw.symbols[i]);
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "shake-and-hiss-" + lastRaw.source.replace(/\s+/g, "-") + "-" + Date.now() + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+
+// ---------- Nerd stats: fairness test ----------
+async function hashedDice(count) {
+  // A separate stream from the seed, so the test doesn't spend your fresh bits.
+  const out = [];
+  let i = 0;
+  while (out.length < count) {
+    const input = new Uint8Array(seed.length + 5);
+    input.set(seed); input[seed.length] = 0xfa;
+    new DataView(input.buffer).setUint32(seed.length + 1, i++);
+    for (const b of await sha256(input)) {
+      if (b < 252) out.push(b % 6);
+      if (out.length >= count) break;
+    }
+  }
+  return out;
+}
+
+$("fairBtn").onclick = async () => {
+  if (!lastRaw || !seed) return;
+  const raw = rawDice(lastRaw.symbols, FAIR_ROLLS);
+  const hashed = await hashedDice(FAIR_ROLLS);
+  const rawRes = raw.length >= 120 ? chiSquareDice(raw) : null;
+  const hashRes = chiSquareDice(hashed);
+  drawFairChart(rawRes, hashRes);
+  const label = (res) => res.verdict === "fair" ? "✓ fair" : res.verdict === "suspicious" ? "suspicious" : "✗ biased";
+  const rows = [
+    ["Raw score (chi²)", rawRes ? rawRes.chi2.toFixed(1) + " " + label(rawRes) : "too few rolls"],
+    ["Hashed score (chi²)", hashRes.chi2.toFixed(1) + " " + label(hashRes)],
+    ["Rolls each", FAIR_ROLLS.toLocaleString()],
+    ["Fair if under", "11.1"],
+  ];
+  $("fairResult").innerHTML = rows.map(([k, v]) => '<div class="stat"><span>' + k + "</span><span>" + v + "</span></div>").join("");
+  $("fairNote").textContent = rawRes && rawRes.verdict !== "fair"
+    ? "Raw dice look biased? That's expected for low-randomness sources like quiet hiss: most readings barely change. It's exactly why the app hashes raw noise before using it."
+    : "";
+};
+
+function drawFairChart(rawRes, hashRes) {
+  const c = $("fairChart"), ctx = c.getContext("2d"), w = c.width, h = c.height;
+  c.hidden = false; $("fairLegend").hidden = false;
+  ctx.clearRect(0, 0, w, h);
+  const share = (res) => res ? res.obs.map((o) => o / res.obs.reduce((a, b) => a + b, 0)) : [0, 0, 0, 0, 0, 0];
+  const rawS = share(rawRes), hashS = share(hashRes);
+  const maxS = Math.max(0.25, ...rawS, ...hashS);
+  const groupW = w / 6, barW = groupW * 0.32, base = h - 18;
+  ctx.font = "12px system-ui"; ctx.textAlign = "center";
+  for (let i = 0; i < 6; i++) {
+    const x = i * groupW + groupW / 2;
+    ctx.fillStyle = cssVar("--accent2");
+    const rh = (rawS[i] / maxS) * (base - 6);
+    ctx.fillRect(x - barW - 1, base - rh, barW, rh);
+    ctx.fillStyle = cssVar("--accent");
+    const hh = (hashS[i] / maxS) * (base - 6);
+    ctx.fillRect(x + 1, base - hh, barW, hh);
+    ctx.fillStyle = cssVar("--muted");
+    ctx.fillText(String(i + 1), x, h - 4);
+  }
+  const yFair = base - ((1 / 6) / maxS) * (base - 6);
+  ctx.strokeStyle = cssVar("--text"); ctx.setLineDash([4, 4]); ctx.beginPath();
+  ctx.moveTo(0, yFair); ctx.lineTo(w, yFair); ctx.stroke(); ctx.setLineDash([]);
+}
+
+// ---------- Wiring ----------
+document.querySelectorAll(".chip").forEach((chip) => {
+  chip.onclick = () => {
+    if (collecting) return;
+    mode = chip.dataset.mode;
+    showMode();
+  };
+});
+
+$("copyBtn").onclick = async () => {
+  if (!lastResult) return;
+  const label = $("copyBtn").querySelector("span");
+  try {
+    await navigator.clipboard.writeText(lastResult.text);
+    label.textContent = "Copied ✓";
+  } catch { label.textContent = "Copy not allowed"; }
+  setTimeout(() => { label.textContent = "Copy"; }, 1500);
+};
+
+$("statsBtn").onclick = () => { $("scrim").hidden = false; $("closeStats").focus(); };
+$("closeStats").onclick = () => { $("scrim").hidden = true; $("statsBtn").focus(); };
+$("scrim").onclick = (e) => { if (e.target === $("scrim")) $("closeStats").click(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("scrim").hidden) $("closeStats").click(); });
+
+$("shakeBtn").onclick = startMotion;
+$("micBtn").onclick = startMic;
+
+$("bars").innerHTML = '<div class="bar"></div>'.repeat(BAR_COUNT);
+renderBars();
+showFace(5);
+showMode();
+updateBudget();
+</script>
+</body>
+</html>
