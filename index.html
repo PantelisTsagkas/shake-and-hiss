@@ -53,8 +53,7 @@
     width: var(--size); height: var(--size); border-radius: 999px; background: var(--accent2); border: 10px solid #e48a5c;
     display: flex; align-items: center; justify-content: center; font-size: calc(var(--size) * .42); font-weight: 700; color: #3a1d0e;
   }
-  .big-number { font-size: calc(var(--size) * .76); font-weight: 700; line-height: 1; color: var(--accent); transition: transform .08s linear; }
-  .big-number.long { font-size: calc(var(--size) * .49); }
+  .big-number { font-size: calc(var(--size) * .76); font-weight: 700; line-height: 1; color: var(--accent); white-space: nowrap; transition: transform .08s linear; }
   .pw-card {
     width: 100%; padding: 22px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
     font-family: ui-monospace, Menlo, monospace; font-size: 21px; font-weight: 600; text-align: center; word-break: break-all;
@@ -370,10 +369,20 @@ function showMode() {
   checkRange();
 }
 
+// Shows a number with thousands separators and shrinks the font until it fits the stage.
 function setNumber(text) {
   const el = $("numberView");
-  el.textContent = text;
-  el.classList.toggle("long", text.length > 3);
+  el.textContent = /^-?\d+$/.test(text) ? Number(text).toLocaleString("en-US") : text;
+  fitNumber();
+}
+
+function fitNumber() {
+  const el = $("numberView");
+  if (el.hidden) return;
+  el.style.fontSize = "";
+  const room = el.parentElement.clientWidth;
+  const width = el.getBoundingClientRect().width;
+  if (width > room) el.style.fontSize = Math.floor(parseFloat(getComputedStyle(el).fontSize) * room / width * 0.96) + "px";
 }
 
 function renderBars() {
@@ -396,7 +405,7 @@ function startAnimation() {
     const rot = (Math.random() - 0.5) * 36;
     if (mode === "dice") { showFace(looseRandom(6) + 1); $("die").style.transform = "rotate(" + rot + "deg) scale(.94)"; }
     if (mode === "coin") { $("coin").style.transform = "scaleX(" + Math.cos(Date.now() / 60).toFixed(2) + ")"; $("coin").textContent = Math.cos(Date.now() / 60) > 0 ? "H" : "T"; }
-    if (mode === "number") { setNumber(String(looseRandom(100) + 1)); $("numberView").style.transform = "rotate(" + rot / 2 + "deg)"; }
+    if (mode === "number") { const r = readRange(); setNumber(String(r.ok ? r.lo + looseRandom(r.hi - r.lo + 1) : looseRandom(100) + 1)); $("numberView").style.transform = "rotate(" + rot / 2 + "deg)"; }
     if (mode === "password") { let s = ""; for (let i = 0; i < PW_LENGTH; i++) s += PW_CHARS[looseRandom(PW_CHARS.length)]; $("pwView").textContent = s; }
     energy = energy.map((e) => e * 0.92); // decays when you stop shaking
     renderBars();
@@ -660,7 +669,7 @@ async function generate() {
       const v = lo + await randomBelow(hi - lo + 1);
       setNumber(String(v));
       lastResult = { mode, text: String(v) };
-      setCaption("Your number is " + v + "!", "good");
+      setCaption("Your number is " + v.toLocaleString("en-US") + "!", "good");
     } else {
       let pw = "";
       for (let i = 0; i < PW_LENGTH; i++) {
@@ -822,6 +831,9 @@ document.querySelectorAll(".chip").forEach((chip) => {
     showMode();
   };
 });
+
+window.addEventListener("resize", fitNumber);
+document.fonts.ready.then(fitNumber); // the display font is wider than the fallback
 
 ["minIn", "maxIn"].forEach((id) => { $(id).oninput = () => { if (!collecting) checkRange(); }; });
 
