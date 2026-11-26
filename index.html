@@ -21,7 +21,7 @@
 
   main {
     max-width: 430px; min-height: 100vh; min-height: 100dvh; margin: 0 auto;
-    padding: 24px 20px 28px; display: flex; flex-direction: column; align-items: center; gap: 16px;
+    padding: 20px 20px 20px; display: flex; flex-direction: column; align-items: center; gap: 14px;
   }
   header { align-self: stretch; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   h1 { margin: 0; font-size: 44px; line-height: 1; letter-spacing: -0.02em; font-weight: 700; }
@@ -38,20 +38,23 @@
   }
   .chip[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
 
-  .stage { flex: 1; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 300px; }
-  .stage-box { width: 100%; max-width: 330px; height: 240px; display: flex; align-items: center; justify-content: center; }
+  .stage {
+    --size: clamp(100px, 24vh, 196px);
+    flex: 1; align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 0;
+  }
+  .stage-box { width: 100%; max-width: 330px; height: calc(var(--size) + 8px); display: flex; align-items: center; justify-content: center; }
   .die {
-    width: 196px; height: 196px; padding: 30px; background: #f5f1e8; border-radius: 40px;
-    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; transition: transform .08s linear;
+    width: var(--size); height: var(--size); padding: calc(var(--size) * .15); background: #f5f1e8; border-radius: calc(var(--size) * .2);
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: calc(var(--size) * .07); transition: transform .08s linear;
   }
   .pip { border-radius: 999px; background: #141722; opacity: 0; }
   .pip.on { opacity: 1; }
   .coin {
-    width: 200px; height: 200px; border-radius: 999px; background: var(--accent2); border: 10px solid #e48a5c;
-    display: flex; align-items: center; justify-content: center; font-size: 84px; font-weight: 700; color: #3a1d0e;
+    width: var(--size); height: var(--size); border-radius: 999px; background: var(--accent2); border: 10px solid #e48a5c;
+    display: flex; align-items: center; justify-content: center; font-size: calc(var(--size) * .42); font-weight: 700; color: #3a1d0e;
   }
-  .big-number { font-size: 150px; font-weight: 700; line-height: 1; color: var(--accent); transition: transform .08s linear; }
-  .big-number.long { font-size: 96px; }
+  .big-number { font-size: calc(var(--size) * .76); font-weight: 700; line-height: 1; color: var(--accent); transition: transform .08s linear; }
+  .big-number.long { font-size: calc(var(--size) * .49); }
   .pw-card {
     width: 100%; padding: 22px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 18px;
     font-family: ui-monospace, Menlo, monospace; font-size: 21px; font-weight: 600; text-align: center; word-break: break-all;
@@ -72,19 +75,19 @@
 
   .energy { align-self: stretch; display: flex; flex-direction: column; gap: 6px; }
   .energy-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
-  .bars { height: 56px; display: flex; align-items: flex-end; gap: 4px; }
+  .bars { height: 40px; display: flex; align-items: flex-end; gap: 4px; }
   .bar { flex: 1; height: 8%; background: var(--idle); border-radius: 4px; transition: height .08s linear, background .2s; }
 
-  .shake-btn {
-    width: 132px; height: 132px; border-radius: 999px; border: 6px solid #2a3150; background: var(--accent); color: #0b0e16;
-    font-size: 22px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  .actions { align-self: stretch; display: flex; gap: 10px; }
+  .go-btn {
+    flex: 1; height: 60px; border-radius: 16px; border: 1px solid var(--line); background: transparent; color: var(--text);
+    font-size: 18px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     cursor: pointer; transition: transform .12s;
   }
-  .shake-btn:active, .shake-btn.busy { transform: scale(.95); }
-  .link-btn {
-    height: 44px; padding: 0 14px; border: 0; background: transparent; color: var(--link); font-size: 14px; font-weight: 600;
-    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-  }
+  .go-btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0e16; }
+  .go-btn:active, .go-btn.busy { transform: scale(.97); }
+  .go-btn.busy { border-color: var(--good); box-shadow: 0 0 0 3px rgba(74, 222, 128, .25); }
+  .go-btn:focus-visible, .chip:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
   .privacy { font-size: 12px; color: var(--muted); text-align: center; margin: 0; }
 
   /* Nerd stats panel */
@@ -117,6 +120,20 @@
   .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); word-break: break-all; }
   .empty { font-size: 14px; color: var(--muted); }
   [hidden] { display: none !important; }
+
+  /* Small phones (iPhone SE) and short laptop windows: keep everything on one screen. */
+  @media (max-width: 360px) {
+    main { padding: 16px 14px; }
+    h1 { font-size: 36px; }
+    .chips { gap: 6px; }
+    .chip { padding: 0 11px; font-size: 13px; }
+  }
+  @media (max-height: 700px) {
+    main { gap: 10px; padding-top: 14px; padding-bottom: 14px; }
+    .chip, .pill-btn, .range input { height: 38px; }
+    .bars { height: 28px; }
+    .go-btn { height: 52px; }
+  }
 </style>
 </head>
 <body>
@@ -163,19 +180,21 @@
   </div>
 
   <div class="energy">
-    <div class="energy-label"><span>Shake energy</span><span id="energyText">Ready</span></div>
+    <div class="energy-label"><span>Noise energy</span><span id="energyText">Ready</span></div>
     <div class="bars" id="bars" aria-hidden="true"></div>
   </div>
 
-  <button class="shake-btn display" id="shakeBtn" aria-label="Shake to generate">
-    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/><path d="M3 8v8"/><path d="M21 8v8"/></svg>
+  <div class="actions">
+  <button class="go-btn primary display" id="shakeBtn">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/><path d="M3 8v8"/><path d="M21 8v8"/></svg>
     <span id="shakeLabel">Shake</span>
   </button>
-  <button class="link-btn" id="micBtn">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/></svg>
-    Or listen to the hiss
+  <button class="go-btn display" id="micBtn">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/></svg>
+    <span id="micLabel">Listen</span>
   </button>
-  <p class="privacy">Nothing leaves your phone. All noise is processed in your browser.</p>
+  </div>
+  <p class="privacy" id="privacy">Nothing leaves your device. All noise is processed in your browser.</p>
 </main>
 
 <div class="scrim" id="scrim" hidden>
@@ -244,6 +263,12 @@ const PW_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%
 const PW_LENGTH = 16;
 const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 
+// ---------- Device ----------
+// Laptops and desktops often define DeviceMotionEvent but never fire it, so also require a touch screen.
+const CAN_SHAKE = typeof DeviceMotionEvent !== "undefined" &&
+  (matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0);
+const IDLE_CAPTION = CAN_SHAKE ? "Shake your phone, or listen to the hiss" : "Tap Listen, then stay quiet for 2 seconds";
+
 // ---------- State ----------
 let mode = "dice";
 let collecting = null;              // "motion" | "mic" | null
@@ -311,7 +336,7 @@ function showMode() {
     if (mode === "coin") { $("coin").textContent = "H"; $("coin").setAttribute("aria-label", "Coin"); }
     if (mode === "number") setNumber("?");
     if (mode === "password") $("pwView").textContent = "?".repeat(PW_LENGTH);
-    setCaption("Tap Shake, then shake your phone", "");
+    setCaption(IDLE_CAPTION, "");
   }
 }
 
@@ -356,10 +381,12 @@ function stopAnimation() {
   $("numberView").style.transform = "";
 }
 
-function setBusy(busy, label) {
-  $("shakeBtn").classList.toggle("busy", busy);
-  $("shakeLabel").textContent = label;
-  $("shakeBtn").setAttribute("aria-label", busy ? "Collecting noise" : "Shake to generate");
+// source: "motion" | "mic" | null (idle). Only the active button changes its label.
+function setBusy(source, label) {
+  $("shakeBtn").classList.toggle("busy", source === "motion");
+  $("micBtn").classList.toggle("busy", source === "mic");
+  $("shakeLabel").textContent = source === "motion" ? label : "Shake";
+  $("micLabel").textContent = source === "mic" ? label : (CAN_SHAKE ? "Listen" : "Listen to the hiss");
 }
 
 function setProgress(p) {
@@ -408,7 +435,7 @@ async function startMotion() {
   }
   collecting = "motion";
   window.addEventListener("devicemotion", onMotion);
-  setBusy(true, "Keep going");
+  setBusy("motion", "Keep going");
   setCaption("Shake, shake, shake!", "");
   startAnimation();
   setTimeout(() => {
@@ -445,7 +472,7 @@ async function startMic() {
   src.connect(processor); processor.connect(mute); mute.connect(audioCtx.destination);
   collecting = "mic";
   let buffers = 0, warmup = 0, started = false, prev = null, peak = 1e-9;
-  setBusy(true, "Listening");
+  setBusy("mic", "Listening");
   setCaption("Warming up the microphone…", "");
   startAnimation();
 
@@ -500,7 +527,7 @@ function stopCollecting() {
   processor = null; micStream = null; audioCtx = null;
   collecting = null;
   stopAnimation();
-  setBusy(false, lastResult ? "Again!" : "Shake");
+  setBusy(null);
   energy = energy.map(() => 0);
   renderBars();
   showMode();
@@ -613,9 +640,8 @@ async function generate() {
       }
       $("pwView").textContent = pw;
       lastResult = { mode, text: pw };
-      setCaption("Fresh password, made only on this phone.", "good");
+      setCaption("Fresh password, made only on this device.", "good");
     }
-    $("shakeLabel").textContent = "Again!";
     showMode();
     updateBudget();
   } catch (err) {
@@ -766,8 +792,17 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("scri
 $("shakeBtn").onclick = startMotion;
 $("micBtn").onclick = startMic;
 
+// Laptops can't shake: make listening the main action and drop the Shake button.
+if (!CAN_SHAKE) {
+  $("shakeBtn").hidden = true;
+  $("micBtn").classList.add("primary");
+  document.querySelector("h1").textContent = "Hear it.";
+  $("privacy").textContent = "Nothing leaves your computer. On a phone you can shake it instead.";
+}
+
 $("bars").innerHTML = '<div class="bar"></div>'.repeat(BAR_COUNT);
 renderBars();
+setBusy(null);
 showFace(5);
 showMode();
 updateBudget();
