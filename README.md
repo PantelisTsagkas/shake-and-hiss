@@ -27,9 +27,6 @@ Phones get two buttons: **Shake** and **Listen**. Laptops and desktops (no touch
 
 ## Deploy
 
-Static site on Vercel, no build step:
+Static site on Vercel, no build step. The GitHub repo is connected to the Vercel project: every push to `main` deploys to production, and other branches get preview URLs. `.vercelignore` limits the upload to `index.html` and `stats.js`.
 
-```sh
-vercel link --project shake-and-hiss
-vercel --prod
-```
+Manual fallback: `vercel --prod` from a linked checkout.
