@@ -240,8 +240,10 @@
       <p><b>Health check:</b> NIST's repetition count test rejects the noise if one value repeats too many times in a row, like a stuck sensor or a TV in the room.</p>
       <p><b>Safety margin:</b> only half of the measured randomness is credited, capped at 256 bits.</p>
       <p><b>Extract and spend:</b> the raw noise is hashed with SHA-256 into a 256-bit seed. Each result uses up credited bits, and no bit is reused.</p>
+      <p><b>Seed privacy:</b> anyone who knows the seed can work out every result still to come from it, so only a short fingerprint is shown. Revealing the full seed retires it first: the unspent bits are thrown away and it is never used again.</p>
       <p><b>Passwords:</b> your physical seed is combined with the browser's own secure generator, so a password is at least as strong as the stronger of the two.</p>
       <p class="mono" id="seedHex"></p>
+      <button class="btn secondary" id="revealBtn" style="width:100%" hidden>Reveal and retire seed</button>
     </details>
   </div>
 </div>
@@ -564,7 +566,7 @@ async function finishCollecting(sourceName) {
   bitsLeft = Math.min(256, bitsLeft + credit);
   lastSource = sourceName;
   rawBytes = [];
-  $("seedHex").textContent = "Current seed (SHA-256): " + toHex(seed);
+  updateBudget();
   $("energyText").textContent = credit + " bits collected";
   $("fairSection").hidden = false;
   await generate();
@@ -651,7 +653,26 @@ async function generate() {
   }
 }
 
-function updateBudget() { $("budget").textContent = "Fresh random bits available: " + bitsLeft; }
+function updateBudget() {
+  $("budget").textContent = "Fresh random bits available: " + bitsLeft;
+  if (seed) {
+    // Only a fingerprint: 32 bits of the hash say nothing useful about the 256-bit seed or its stream.
+    $("seedHex").textContent = "Seed fingerprint: " + toHex(seed).slice(0, 8) + "…";
+    $("revealBtn").textContent = "Reveal and retire seed (discards " + bitsLeft + " unused bits)";
+    $("revealBtn").hidden = false;
+  }
+}
+
+// Showing the full seed would let anyone predict the results still to come, so wipe it first.
+$("revealBtn").onclick = () => {
+  if (!seed) return;
+  const full = toHex(seed);
+  seed = null; bitsLeft = 0; counter = 0; stream = []; bitBuffer = 0; bitBufferLen = 0;
+  $("fairSection").hidden = true; // the fairness test needs a live seed
+  $("revealBtn").hidden = true;
+  $("seedHex").textContent = "Retired seed (SHA-256): " + full + ". It will never be used again. Shake or listen to collect a new one.";
+  updateBudget();
+};
 
 // ---------- Nerd stats: measurement report ----------
 function showReport(r, credit, sourceName) {
